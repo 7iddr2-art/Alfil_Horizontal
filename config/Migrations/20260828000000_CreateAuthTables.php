@@ -5,6 +5,7 @@ use Migrations\BaseMigration;
 
 class CreateAuthTables extends BaseMigration
 {
+    /** Creates the empty authentication schema without bootstrapping users or roles. */
     public function change(): void
     {
         $this->table('roles')
@@ -36,34 +37,5 @@ class CreateAuthTables extends BaseMigration
             ->addForeignKey('role_id', 'roles', 'id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
             ->addForeignKey('profile_id', 'profiles', 'id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
             ->create();
-
-        $now = date('Y-m-d H:i:s');
-        $this->table('roles')->insert([
-            'name' => 'super_admin',
-            'description' => 'Acceso total al sistema',
-            'is_super_admin' => true,
-            'created' => $now,
-            'modified' => $now,
-        ])->saveData();
-
-        $this->table('profiles')->insert([
-            'name' => 'Administrador',
-            'description' => 'Perfil principal de administración',
-            'created' => $now,
-            'modified' => $now,
-        ])->saveData();
-
-        $roleId = $this->fetchRow('SELECT id FROM roles WHERE name = \'super_admin\'')['id'];
-        $profileId = $this->fetchRow('SELECT id FROM profiles WHERE name = \'Administrador\'')['id'];
-
-        $this->table('users')->insert([
-            'username' => 'Admin',
-            'password' => '$2y$10$ipbVbIaYPNOiT3Ss9TFWfOE4CUGN9V54XUYSd4q1gZPcJjmezNxdq',
-            'role_id' => $roleId,
-            'profile_id' => $profileId,
-            'active' => true,
-            'created' => $now,
-            'modified' => $now,
-        ])->saveData();
     }
 }

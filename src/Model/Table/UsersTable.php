@@ -16,6 +16,7 @@ class UsersTable extends Table
         $this->setPrimaryKey('id');
         $this->belongsTo('Roles');
         $this->belongsTo('Profiles');
+        $this->hasMany('TenantMemberships', ['foreignKey' => 'user_id']);
     }
 
     public function validationDefault(Validator $validator): Validator
