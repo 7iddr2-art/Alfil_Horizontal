@@ -1,7 +1,7 @@
 # Plan de trabajo: plataforma de propiedad horizontal
 
 **Base del análisis:** especificación funcional y técnica, versión 1.0 (octubre de 2026), y código presente en este repositorio al momento de la revisión.  
-**Estado:** Fase 0 en curso. Decisiones D-001–D-010 registradas, MySQL local configurado y diseño lógico multi-tenant documentado para revisión. Siguen pendientes la inspección segura y conciliación de datos actuales, el aislamiento de la base de pruebas, las validaciones profesionales y el backlog estimado. La especificación se declara documento base sujeto a validación; este plan no sustituye la revisión profesional contable, jurídica y tributaria.
+**Estado:** Fase 0 en curso. Decisiones D-001–D-010 y diseño lógico multi-tenant aprobados; MySQL local y bases de desarrollo/prueba separadas configurados; las migraciones se ejecutaron en la base de prueba. La suite inicial tuvo 6 pruebas aprobadas y 4 fallos en pruebas de `PagesController` que esperaban códigos HTTP distintos a la redirección observada. Siguen pendientes la validación técnica del diseño, la inspección y conciliación de datos actuales, las validaciones profesionales y el backlog estimado. La especificación se declara documento base sujeto a validación; este plan no sustituye la revisión profesional contable, jurídica y tributaria.
 
 ## 1. Resumen ejecutivo
 
@@ -17,7 +17,7 @@ Se recomienda construir por fases y de extremo a extremo, empezando por descubri
 |---|---|---|
 | Plataforma y tecnología | PHP 8.2+, CakePHP 5.4; autenticación y migraciones de CakePHP declaradas en `composer.json`. | Base técnica compatible con la arquitectura propuesta de monolito modular. |
 | Persistencia | `config/app.php` configura el driver MySQL de CakePHP. XAMPP trae MariaDB 10.4.32. Se instaló MySQL Community Server 8.4.9 de forma local por usuario y se verificó en `127.0.0.1:3307`, con `utf8mb4` y `utf8mb4_0900_ai_ci`. | El destino elegido es Oracle MySQL Server. Se inicia manualmente con un script por usuario porque la sesión no tiene permisos de administrador para registrar un servicio de Windows. No se creó aún una base de aplicación ni esquema. CI/producción deben fijar y probar versiones compatibles. |
-| Configuración local de la aplicación | El `config/app_local.php` ignorado por Git apunta las conexiones `default` y `test` a `localhost` y a la base `horizontal`, sin puerto explícito (MySQL/MariaDB por defecto: 3306). | Aún no se cambió para preservar el entorno y datos existentes. La configuración test comparte el mismo nombre de base que default: no ejecutar migraciones de prueba hasta separar y verificar esas bases. La conexión de CakePHP todavía no apunta al MySQL nuevo de puerto 3307. |
+| Configuración local de la aplicación | El `config/app_local.php` ignorado por Git configura `default` en la base `horizontal` del MariaDB de XAMPP (puerto 3306). El datasource `test` usa actualmente una URL SQLite, por lo que no llega al MySQL/MariaDB configurado en sus otras propiedades. | La prueba no compartía efectivamente la misma base física; aun así no prueba compatibilidad de migraciones con MySQL y la configuración es ambigua. Con autorización del propietario se prepararán bases MySQL separadas para `default` y `test`, preservando `horizontal`. |
 | Estructura de copropiedad | CRUDs y modelos para propiedad horizontal, viviendas, parqueaderos y asignaciones; migraciones en `config/Migrations/`. | Parcial: las migraciones revisadas no vinculan viviendas/parqueaderos a una copropiedad ni definen `tenant_id`; códigos de vivienda y parqueadero tienen unicidad global. Faltan jerarquía física, activos/zonas comunes y coeficientes con historial/vigencia. |
 | Personas y relaciones | CRUDs para copropietarios, residentes y relación vivienda-copropietario. | Parcial: sirve como catálogo inicial; validar si el modelo actual conserva roles, vigencias e historial requeridos para cambios de titularidad. |
 | Acceso | Autenticación con sesión/formulario y contraseñas hasheadas; CRUDs de usuarios, roles y perfiles. | Parcial: no se encontró autorización efectiva basada en permisos para las acciones, recursos y alcance por copropiedad que exige la especificación. |
@@ -68,7 +68,7 @@ Las dependencias indicadas son bloqueantes: la fase posterior no debe habilitar 
 - Talleres con administración, tesorería, contabilidad, consejo, portería, asesoría jurídica y producto.
 - Precisar alcance de primera versión y reglas de liquidación, coeficientes, redondeo, mora, pagos, cierres, aprobaciones y anulaciones.
 - Definir perfiles, permisos por acción/recurso, alcance SaaS/copropiedad/unidad y segregación de funciones.
-- Validar el modelo de datos actual y plan de transición; configurar Oracle MySQL Server con versión, motor de almacenamiento, charset/collation y capacidades operativas acordadas antes de ampliar el esquema. **Avance:** MySQL Community Server 8.4.9 está configurado localmente en loopback, puerto 3307, y respondió a la consulta de verificación; existe un script de inicio por usuario. Aún falta reproducir la configuración en CI y probar migraciones.
+- Validar el modelo de datos actual y plan de transición; configurar Oracle MySQL Server con versión, motor de almacenamiento, charset/collation y capacidades operativas acordadas antes de ampliar el esquema. **Avance:** MySQL Community Server 8.4.9 está configurado localmente en loopback, puerto 3307; la configuración local separa los datasources `default` y `test` en bases distintas. Las siete migraciones del proyecto se aplicaron en la base de prueba; falta reproducir la configuración en CI y resolver/triagear cuatro fallos de pruebas de `PagesController`.
 - Inventariar sin cambios los datos de `horizontal` en el entorno anterior; acordar si se migran, conservan en MariaDB o se reemplazan. Separar la base de pruebas antes de ejecutar el migrador de tests.
 - Confirmar con el equipo la estrategia para que desarrollo y pruebas usen bases separadas sin perder ni sobreescribir datos existentes.
 - Acordar importación/migración inicial, retención documental, respaldo/recuperación y modelo de precios; tomar las metas no funcionales del PDF como objetivos de piloto sujetos a pruebas y análisis de costos, no como garantía comercial.
@@ -84,17 +84,40 @@ Las dependencias indicadas son bloqueantes: la fase posterior no debe habilitar 
 
 | ID | Actividad / entregable | Estado | Dependencia / condición para cerrar |
 |---|---|---|---|
-| F0-01 | Alcance y decisiones D-001–D-009 | Parcialmente completado | Las nueve decisiones iniciales están registradas. Aún faltan la muestra/columnas CSV del banco del piloto, el SLA comercial y las reglas contables, tributarias, de mora, quórum y conservación aprobadas por responsables. |
-| F0-02 | Entorno MySQL objetivo | Parcialmente completado | MySQL Community Server 8.4.9 corre localmente en puerto 3307 y tiene script de inicio por usuario. Falta compatibilidad de CI, arranque de desarrollo reproducible y pruebas de migraciones antes de crear el esquema objetivo. |
-| F0-03 | Diseño lógico multi-tenant | Propuesto en este documento | Revisión del producto/desarrollo y comprobación de restricciones compuestas en MySQL 8.4 antes de aprobar como ADR y convertirlo en migraciones. |
-| F0-04 | Inventario y mapeo de datos actuales | Pendiente | Respaldar y revisar sólo metadatos/conteos necesarios de la base `horizontal`; acordar mapeo de cada registro a tenant/copropiedad y reconciliar con el dueño de los datos. No consultar ni trasladar PII en esta fase sin autorización y propósito definidos. |
-| F0-05 | Separar bases de desarrollo y prueba | Bloqueado preventivamente | La configuración local ignorada apunta `default` y `test` a `horizontal` en el puerto 3306. Definir nombres/credenciales separados y actualizar la configuración local sólo después de confirmar y respaldar los datos; probar que PHPUnit nunca modifica la base de desarrollo. |
+| F0-01 | Alcance y decisiones D-001–D-010 | Parcialmente completado | Las diez decisiones están registradas. Aún faltan la muestra/columnas CSV del banco del piloto, el SLA comercial y las reglas contables, tributarias, de mora, quórum y conservación aprobadas por responsables. |
+| F0-02 | Entorno MySQL objetivo | Parcialmente completado | MySQL Community Server 8.4.9 corre localmente en puerto 3307; los datasources `default` y `test` usan bases separadas y las siete migraciones se aplicaron en la base de prueba. Falta compatibilidad de CI y arranque de desarrollo reproducible; la ejecución inicial de PHPUnit tuvo cuatro fallos en `PagesController` por respuestas 302 frente a los códigos esperados. |
+| F0-03 | Diseño lógico multi-tenant | Aprobado por producto como arquitectura objetivo | El propietario aprobó el diseño descrito abajo. Desarrollo debe validarlo frente a las restricciones compuestas de MySQL 8.4 y registrar el ADR antes de convertirlo en migraciones; no cambiar aún el esquema ni los datos existentes. |
+| F0-04 | Inventario y mapeo de datos actuales | Inventario agregado completado; conciliación pendiente | Con autorización del propietario se consultaron sólo metadatos y conteos agregados de `horizontal`: 16 tablas InnoDB, 27 filas totales según `COUNT(*)`. No se leyeron filas ni se modificó la base. Aún se requiere respaldo verificable, confirmar con el dueño de datos la copropiedad/tenant de cada registro y acordar cualquier migración; los conteos no prueban integridad ni propiedad. |
+| F0-05 | Separar bases de desarrollo y prueba | Configurado; validación inicial completada | `config/app_local.php` (ignorado por Git) apunta `default` a `alfil_horizontal_dev` y `test` a `alfil_horizontal_test`, ambas en MySQL 8.4 con cuentas separadas y limitadas a su esquema. PHPUnit aplicó las siete migraciones sólo en `test`; `default` contiene únicamente la tabla vacía `cake_migrations` creada al consultar su estado (cero migraciones aplicadas). La base anterior `horizontal` en MariaDB/XAMPP no se modificó. La suite reportó cuatro fallos HTTP en `PagesController`, pendientes de triage independiente. |
 | F0-06 | Matriz de roles, permisos y alcance | Pendiente | Convertir los perfiles del PDF en permisos por acción y alcance; aprobar la matriz con producto y probar casos permitidos/denegados antes de Fase 1. |
 | F0-07 | Reglas de negocio y cumplimiento | Pendiente | Validación por contador, asesor jurídico/tributario y responsables de la copropiedad; parametrizar diferencias por copropiedad, sin declarar cumplimiento automático del sistema. |
 | F0-08 | Historias, criterios de aceptación y dependencias | En elaboración | Desglosar requisitos RF/HU en historias verticales priorizadas; criterios observables, datos de prueba sin PII real, dependencias y responsable funcional para cada una. |
 | F0-09 | Estimación y aprobación de alcance | Pendiente | Estimar con el equipo real sólo cuando F0-01, F0-03, F0-06 y F0-08 estén acordados; no prometer fechas antes de la estimación y validación del alcance. |
 
-#### Diseño lógico multi-tenant propuesto (pendiente de aprobación)
+#### Inventario agregado de la base anterior `horizontal`
+
+Consulta de sólo lectura ejecutada con autorización: se consultaron nombres de tablas y conteos `COUNT(*)`; no se seleccionaron campos ni filas de negocio, no se creó respaldo y no se alteró la base. Las 16 tablas reportaron motor InnoDB. Estos conteos son una fotografía del entorno local y deben reconciliarse con el responsable de los datos antes de decidir migración.
+
+| Tabla | Filas |
+|---|---:|
+| `access_audits` | 8 |
+| `asignaciones_parqueaderos` | 0 |
+| `cake_migrations` | 7 |
+| `copropietarios` | 1 |
+| `meetings` | 1 |
+| `pagos_parqueaderos` | 0 |
+| `parqueaderos` | 0 |
+| `personal_administraciones` | 0 |
+| `polizas_aseguramiento` | 0 |
+| `profiles` | 3 |
+| `propiedades_horizontales` | 0 |
+| `residentes` | 0 |
+| `roles` | 2 |
+| `users` | 3 |
+| `viviendas` | 1 |
+| `vivienda_copropietarios` | 1 |
+
+#### Diseño lógico multi-tenant aprobado como objetivo (implementación pendiente)
 
 - **Tenant:** representa al cliente comercial SaaS. Suscripción, plan, límites y estado pertenecen a este nivel.
 - **Copropiedad:** pertenece a un tenant; un tenant puede tener una o varias copropiedades. Se conserva la entidad de negocio existente de propiedad horizontal, pero debe vincularse al tenant.
@@ -302,7 +325,7 @@ Resolver durante la fase 0, documentar responsable y fecha objetivo, y no conver
 
 | ID | Decisión | Estado | Consecuencia / seguimiento |
 |---|---|---|---|
-| D-001 | Usar Oracle MySQL Server como base de datos objetivo y adaptar el diseño a esa plataforma. | Aprobada por el propietario del producto durante el inicio de la fase 0. | MySQL Community Server 8.4.9 está instalado/configurado localmente en `127.0.0.1:3307`; la consulta de verificación confirmó versión, puerto, enlace local y `utf8mb4`. El script de inicio evita requerir servicio de Windows. No se creó una base de aplicación ni esquema. `app_local.php` aún no apunta al nuevo servidor y default/test comparten `horizontal`; inventariar/proteger los datos existentes y separar test antes de conectar o ejecutar migraciones. |
+| D-001 | Usar Oracle MySQL Server como base de datos objetivo y adaptar el diseño a esa plataforma. | Aprobada por el propietario del producto durante el inicio de la fase 0. | MySQL Community Server 8.4.9 está instalado/configurado localmente en `127.0.0.1:3307`; la consulta de verificación confirmó versión, puerto, enlace local y `utf8mb4`. Los datasources locales apuntan a bases separadas de desarrollo y prueba; las siete migraciones se aplicaron en test. CI/arranque persistente y triage de cuatro fallos actuales de PHPUnit siguen pendientes. |
 | D-002 | Incluir contabilidad completa en el primer lanzamiento. | Aprobada por el propietario del producto durante el inicio de la fase 0. | Dimensionar plan de cuentas, asientos balanceados, períodos/cierres, reversiones, reportes y pruebas; obtener validación del contador responsable. Las exportaciones a terceros serán complementarias. |
 | D-003 | Iniciar con registro manual e importación de extractos bancarios; postergar la pasarela de pagos. | Aprobada por el propietario del producto durante el inicio de la fase 0. | La conciliación debe admitir la importación inicial decidida en D-004 y permitir integrar una pasarela luego sin rehacer el núcleo de pagos. |
 | D-004 | La importación inicial de extractos será CSV; el banco aún no está definido. | Aprobada por el propietario del producto durante el inicio de la fase 0. | No fijar columnas ni construir un formato bancario hasta definir el banco y disponer de una muestra real; preparar el diseño para configurar el mapeo CSV después. |
