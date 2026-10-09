@@ -35,7 +35,7 @@ jobs:
       TEST_DB_USERNAME: alfil_test
       TEST_DB_PASSWORD: ci_test_password
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
