@@ -29,6 +29,18 @@ class PagesControllerTest extends TestCase
     use IntegrationTestTrait;
 
     /**
+     * Anonymous page requests must retain the global authentication boundary.
+     *
+     * @return void
+     */
+    public function testAnonymousRequestRedirectsToLogin(): void
+    {
+        $this->get('/pages/home');
+
+        $this->assertRedirectContains('/users/login');
+    }
+
+    /**
      * testDisplay method
      *
      * @return void
