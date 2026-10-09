@@ -134,6 +134,7 @@ $cakeDescription = 'CakePHP: the rapid development php framework';
         <div class="top-nav-links">
             <?php if ($identity) : ?>
                 <span class="top-nav-user"><?= h($identity->get('username')) ?></span>
+                <a href="<?= $this->Url->build('/tenant-contexts') ?>">Cambiar tenant</a>
                 <a href="<?= $this->Url->build('/users/logout') ?>">Cerrar sesión</a>
             <?php else : ?>
                 <a href="<?= $this->Url->build('/users/login') ?>">Iniciar sesión</a>

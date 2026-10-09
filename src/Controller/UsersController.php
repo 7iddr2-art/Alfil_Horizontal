@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\TenantContextSession;
+use App\Service\TenantContextResolver;
 use Cake\Http\Response;
 
 class UsersController extends AppController
@@ -19,6 +21,7 @@ class UsersController extends AppController
 
         if ($this->request->is('post')) {
             if ($result->isValid()) {
+                $this->tenantContextSession()->clear($this->request);
                 $this->recordAccessLogin();
 
                 return $this->Authentication->redirectAfterLogin('/');
@@ -35,6 +38,7 @@ class UsersController extends AppController
     public function logout(): Response
     {
         $this->recordAccessLogout();
+        $this->tenantContextSession()->clear($this->request);
         $this->Authentication->logout();
 
         return $this->redirect('/users/login');
@@ -59,6 +63,14 @@ class UsersController extends AppController
             'user_agent' => $this->request->getHeaderLine('User-Agent') ?: ($_SERVER['HTTP_USER_AGENT'] ?? null),
             'login_method' => 'form',
         ]);
+    }
+
+    /** Creates the helper that stores and clears the authenticated user's tenant selection. */
+    private function tenantContextSession(): TenantContextSession
+    {
+        $resolver = new TenantContextResolver($this->fetchTable('TenantMemberships'));
+
+        return new TenantContextSession($resolver);
     }
 
     protected function recordAccessLogout(): void

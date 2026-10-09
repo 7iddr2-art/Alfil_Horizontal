@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\TenantContextResolver;
+use App\Service\TenantContextSession;
 use Cake\Http\Exception\ForbiddenException;
+use Cake\Http\ServerRequest;
 use Cake\I18n\FrozenTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
@@ -79,6 +81,63 @@ class TenantContextResolverTest extends TestCase
 
         $this->expectException(ForbiddenException::class);
         $this->resolver()->resolve($userId, $tenantId);
+    }
+
+    public function testAppliesValidatedSessionContextToRequest(): void
+    {
+        [$userId, $tenantId] = $this->createUserAndTenant();
+        $this->createMembership($userId, $tenantId, ['status' => 'active']);
+        $resolver = $this->resolver();
+        $context = $resolver->resolve($userId, $tenantId);
+        $request = new ServerRequest();
+        $session = new TenantContextSession($resolver);
+        $session->select($request, $context);
+
+        $requestWithContext = $session->apply($request, $userId);
+
+        $resolvedContext = $requestWithContext->getAttribute('tenantContext');
+        $this->assertSame($userId, $resolvedContext->userId);
+        $this->assertSame($tenantId, $resolvedContext->tenantId);
+    }
+
+    public function testClearsSessionContextWhenAuthenticatedUserChanges(): void
+    {
+        $request = new ServerRequest();
+        $resolver = $this->resolver();
+        $session = new TenantContextSession($resolver);
+        $request->getSession()->write('TenantContext', [
+            'user_id' => 100,
+            'tenant_id' => 200,
+        ]);
+
+        $requestWithoutContext = $session->apply($request, 101);
+
+        $this->assertNull($requestWithoutContext->getAttribute('tenantContext'));
+        $this->assertNull($request->getSession()->read('TenantContext'));
+    }
+
+    public function testClearsAndDeniesSessionContextAfterMembershipRevocation(): void
+    {
+        [$userId, $tenantId] = $this->createUserAndTenant();
+        $this->createMembership($userId, $tenantId, ['status' => 'active']);
+        $resolver = $this->resolver();
+        $request = new ServerRequest();
+        $session = new TenantContextSession($resolver);
+        $session->select($request, $resolver->resolve($userId, $tenantId));
+
+        $memberships = TableRegistry::getTableLocator()->get('TenantMemberships');
+        $membership = $memberships->find()
+            ->where(['user_id' => $userId, 'tenant_id' => $tenantId])
+            ->firstOrFail();
+        $membership->set('status', 'revoked');
+        $memberships->saveOrFail($membership);
+
+        try {
+            $session->apply($request, $userId);
+            $this->fail('A revoked membership must not retain its tenant context.');
+        } catch (ForbiddenException) {
+            $this->assertNull($request->getSession()->read('TenantContext'));
+        }
     }
 
     /**

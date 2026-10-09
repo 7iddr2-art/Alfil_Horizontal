@@ -52,6 +52,8 @@ return function (RouteBuilder $routes): void {
     $routes->scope('/', function (RouteBuilder $builder): void {
             $builder->connect('/users/login', ['controller' => 'Users', 'action' => 'login']);
             $builder->connect('/users/logout', ['controller' => 'Users', 'action' => 'logout']);
+            $builder->connect('/tenant-contexts', ['controller' => 'TenantContexts', 'action' => 'index']);
+            $builder->connect('/tenant-contexts/select', ['controller' => 'TenantContexts', 'action' => 'select']);
             $builder->connect('/access-audits', ['controller' => 'AccessAudits', 'action' => 'index']);
             $builder->connect('/access-audits/export-csv', ['controller' => 'AccessAudits', 'action' => 'exportCsv']);
             $builder->connect('/access-audits/cleanup', ['controller' => 'AccessAudits', 'action' => 'cleanup']);

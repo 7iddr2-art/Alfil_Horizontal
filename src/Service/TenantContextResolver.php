@@ -16,7 +16,11 @@ final class TenantContextResolver
     ) {
     }
 
-    /** Resolves an active tenant context for an authenticated user or denies access. */
+    /**
+     * Resolves an active tenant context for an authenticated user or denies access.
+     *
+     * Background jobs must pass their persisted user and tenant identifiers explicitly.
+     */
     public function resolve(int $userId, int $tenantId): TenantContext
     {
         if ($userId < 1 || $tenantId < 1) {

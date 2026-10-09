@@ -16,9 +16,13 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
-use Cake\Core\Configure;
+use App\Service\TenantContext;
+use App\Service\TenantContextResolver;
+use App\Service\TenantContextSession;
 use Cake\Controller\Controller;
+use Cake\Core\Configure;
 use Cake\Event\EventInterface;
+use Cake\Http\Exception\ForbiddenException;
 
 /**
  * Application Controller
@@ -55,6 +59,9 @@ class AppController extends Controller
         //$this->loadComponent('FormProtection');
     }
 
+    /**
+     * Refreshes session activity and attaches a revalidated tenant context when selected.
+     */
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
@@ -69,5 +76,21 @@ class AppController extends Controller
         }
 
         $accessAudits->refreshSessionActivity((int)$identity->getIdentifier(), session_id());
+
+        $memberships = $this->fetchTable('TenantMemberships');
+        $resolver = new TenantContextResolver($memberships);
+        $contextSession = new TenantContextSession($resolver);
+        $this->setRequest($contextSession->apply($this->request, (int)$identity->getIdentifier()));
+    }
+
+    /** Returns the validated request tenant context or denies access. */
+    protected function requireTenantContext(): TenantContext
+    {
+        $context = $this->request->getAttribute('tenantContext');
+        if (!$context instanceof TenantContext) {
+            throw new ForbiddenException('An active tenant context is required.');
+        }
+
+        return $context;
     }
 }
