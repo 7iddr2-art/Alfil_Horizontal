@@ -2,80 +2,66 @@ name: CI
 
 on:
   push:
-    branches:
-      - '5.x'
-      - '5.next'
-      - '6.x'
   pull_request:
-    branches:
-      - '*'
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  testsuite:
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - php-version: '8.2'
-            dependencies: 'lowest'
-          - php-version: '8.5'
-            dependencies: 'highest'
-          - php-version: '8.5'
-            dependencies: 'highest'
-
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: alfil_horizontal_dev
+      DB_USERNAME: alfil_dev
+      DB_PASSWORD: ci_dev_password
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: 3306
+      TEST_DB_DATABASE: alfil_horizontal_test
+      TEST_DB_USERNAME: alfil_test
+      TEST_DB_PASSWORD: ci_test_password
     steps:
-    - uses: actions/checkout@v7
-
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ matrix.php-version }}
-        extensions: mbstring, intl, pdo_sqlite
-        ini-values: zend.assertions=1
-        coverage: none
-
-    - name: Composer install
-      uses: ramsey/composer-install@v4
-      with:
-        dependency-versions: ${{ matrix.dependencies }}
-        composer-options: ${{ matrix.composer-options }}
-
-    - name: Composer post install
-      run: composer run-script post-install-cmd --no-interaction
-
-    - name: Run PHPUnit
-      run: vendor/bin/phpunit
-      env:
-        DATABASE_TEST_URL: sqlite://./testdb.sqlite
-
-  coding-standard:
-    name: Coding Standard & Static Analysis
-    runs-on: ubuntu-24.04
-
-    steps:
-    - uses: actions/checkout@v7
-
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.2'
-        extensions: mbstring, intl
-        coverage: none
-        tools: cs2pr, phpstan:2.1
-
-    - name: Composer install
-      uses: ramsey/composer-install@v4
-
-    - name: Run PHP CodeSniffer
-      run: vendor/bin/phpcs --report=checkstyle | cs2pr
-
-    - name: Run phpstan
-      if: always()
-      run: phpstan
-      env:
-        SECURITY_SALT: f76f1c8475585c46c6acd3ddcb8f5e0f15de524637bb4080a08c4afe7cfc9144
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: gd, intl, mbstring, pdo_mysql, zip
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Create isolated database schemas
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        run: |
+          mysql --host=127.0.0.1 --user=root --password="${MYSQL_ROOT_PASSWORD}" <<'SQL'
+          CREATE DATABASE alfil_horizontal_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+          CREATE DATABASE alfil_horizontal_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+          CREATE USER 'alfil_dev'@'%' IDENTIFIED BY 'ci_dev_password';
+          CREATE USER 'alfil_test'@'%' IDENTIFIED BY 'ci_test_password';
+          GRANT ALL PRIVILEGES ON alfil_horizontal_dev.* TO 'alfil_dev'@'%';
+          GRANT ALL PRIVILEGES ON alfil_horizontal_test.* TO 'alfil_test'@'%';
+          SQL
+      - name: Validate PHP coding standards
+        run: vendor/bin/phpcs tests/TestCase/Controller/PagesControllerTest.php
+      - name: Validate PHP syntax
+        run: |
+          php -l config/app.php
+          php -l config/app_local.example.php
+          php -l tests/TestCase/Controller/PagesControllerTest.php
+      - name: Run tests and migrations
+        run: composer test

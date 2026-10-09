@@ -289,6 +289,11 @@ return [
             'className' => Connection::class,
             'driver' => Mysql::class,
             'persistent' => false,
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', 3306),
+            'username' => env('DB_USERNAME', ''),
+            'password' => env('DB_PASSWORD', ''),
+            'database' => env('DB_DATABASE', ''),
             'timezone' => 'UTC',
 
             /*
@@ -332,6 +337,11 @@ return [
             'className' => Connection::class,
             'driver' => Mysql::class,
             'persistent' => false,
+            'host' => env('TEST_DB_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('TEST_DB_PORT', env('DB_PORT', 3306)),
+            'username' => env('TEST_DB_USERNAME', ''),
+            'password' => env('TEST_DB_PASSWORD', ''),
+            'database' => env('TEST_DB_DATABASE', ''),
             'timezone' => 'UTC',
             'encoding' => 'utf8mb4',
             'flags' => [],

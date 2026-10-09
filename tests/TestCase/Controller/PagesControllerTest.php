@@ -35,6 +35,7 @@ class PagesControllerTest extends TestCase
      */
     public function testDisplay()
     {
+        $this->authenticateAsAdmin();
         Configure::write('debug', true);
         $this->get('/pages/home');
         $this->assertResponseOk();
@@ -49,6 +50,7 @@ class PagesControllerTest extends TestCase
      */
     public function testMissingTemplate()
     {
+        $this->authenticateAsAdmin();
         Configure::write('debug', false);
         $this->get('/pages/not_existing');
 
@@ -63,6 +65,7 @@ class PagesControllerTest extends TestCase
      */
     public function testMissingTemplateInDebug()
     {
+        $this->authenticateAsAdmin();
         Configure::write('debug', true);
         $this->get('/pages/not_existing');
 
@@ -79,9 +82,25 @@ class PagesControllerTest extends TestCase
      */
     public function testDirectoryTraversalProtection()
     {
+        $this->authenticateAsAdmin();
         $this->get('/pages/../Layout/ajax');
         $this->assertResponseCode(403);
         $this->assertResponseContains('Forbidden');
+    }
+
+    /**
+     * Authenticate page requests that assert controller behavior beyond the login redirect.
+     *
+     * @return void
+     */
+    private function authenticateAsAdmin(): void
+    {
+        $this->session([
+            'Auth' => [
+                'id' => 1,
+                'username' => 'Admin',
+            ],
+        ]);
     }
 
     /**
