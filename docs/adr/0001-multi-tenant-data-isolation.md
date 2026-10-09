@@ -1,8 +1,8 @@
 # ADR-0001: Aislamiento multi-tenant en una base de datos compartida
 
-- **Estado:** Dirección aprobada por producto y ADR aprobado en revisión de arquitectura según confirmación del usuario (2026-10-09); prototipo de FK compuesta validado en MySQL 8.4. La aprobación del ADR no sustituye el diseño detallado del DER, índices y migraciones previo a implementarlos.
+- **Estado:** Diseño objetivo aprobado por producto y arquitectura según confirmación del usuario (2026-10-09); prototipo de FK compuesta validado en MySQL 8.4. **Implementación detenida por decisión posterior del usuario (2026-10-09): no ejecutar migraciones de base de datos ni cambios DDL manuales equivalentes, pues los datos actuales son de prueba.** Este ADR no autoriza cambios de base ni acredita aislamiento multi-tenant implementado.
 - **Fecha:** 2026-10-09.
-- **Responsables:** Producto aprobó la dirección. Desarrollo/arquitectura debe revisar este ADR antes de crear migraciones de negocio.
+- **Responsables:** Producto y arquitectura aprobaron la dirección. Cualquier revisión futura de implementación debe respetar la política de no alterar la base mientras siga vigente.
 
 ## Contexto
 
@@ -74,7 +74,7 @@ Esta clasificación es una propuesta técnica de propiedad del dato, no un inven
 - Las claves/índices redundantes para restricciones compuestas aumentan espacio y trabajo de migración, pero añaden una barrera de integridad referencial.
 - La consulta de listas, unicidad, búsquedas, auditoría, documentos, exports y jobs debe auditarse por alcance, no sólo las rutas web.
 - Los identificadores globales existentes, la identidad de personas y la granularidad de membresías requieren decisiones de dominio antes de imponer constraints.
-- No se crearán `tenant_id` ni membresías de producción en las tablas actuales todavía. Las migraciones seguirán siendo versionadas, se probarán primero en MySQL 8.4 y sólo poblarán datos tras mapeo aprobado.
+- El usuario decidió no ejecutar migraciones de base de datos de ningún tipo ni DDL equivalente, porque los datos disponibles son de prueba. No se crearán `tenant_id`, membresías ni otras estructuras persistentes, ni se ejecutará backfill. El diseño descrito permanece como objetivo arquitectónico y el aislamiento multi-tenant no está implementado. Cualquier cambio de esta restricción requiere autorización explícita del usuario antes de preparar o ejecutar modificaciones de base.
 
 ## Validación técnica realizada
 
@@ -91,7 +91,7 @@ Las tablas de prueba se eliminaron después y se comprobó que la base `alfil_ho
 |---|---|---|---|
 | 2026-10-09 | ADR-0001, dirección de aislamiento multi-tenant | Aprobado | El usuario confirmó que la persona revisora aprobó el ADR. No se recibieron comentarios, condiciones ni nombre para registrar; no inferir que el DER detallado o cada punto de la lista de verificación recibió aprobación individual. |
 
-## Pendientes antes de migraciones de negocio
+## Pendientes de diseño (sin autorización para modificar la base)
 
 - Completar la revisión del diagrama entidad-relación, cardinalidades, nulabilidad y tablas globales vs. tenant-scoped antes de migraciones; el ADR de dirección ya fue aprobado. Registrar por separado la fecha, observaciones, decisiones y responsable de cada hallazgo del diseño detallado.
 - Confirmar la clasificación inicial de tablas anterior, en especial la ausencia actual de relación vivienda-copropiedad, la identidad de personas/PII y la separación de auditoría de login frente a auditoría de negocio.
@@ -104,9 +104,9 @@ Las tablas de prueba se eliminaron después y se comprobó que la base `alfil_ho
 - Obtener revisión profesional de privacidad, retención, contabilidad y reglas legales que afecten autorización/conservación.
 - El ADR recibió aprobación de arquitectura; cualquier observación posterior o cambio de decisión debe quedar versionado. Completar el DER, índices, restricciones y plan de migración con responsables antes de implementar.
 
-### Lista de verificación para la revisión de arquitectura
+### Lista de verificación para una futura revisión de implementación
 
-Marcar cada punto como **aprobado**, **cambiar** o **no aplica**, con evidencia/decisión; los puntos sin respuesta siguen bloqueando migraciones multi-tenant:
+Marcar cada punto como **aprobado**, **cambiar** o **no aplica**, con evidencia/decisión. Completar este diseño no levanta por sí solo la prohibición de migrar ni modificar bases:
 
 1. Confirmar la clasificación global/tenant/copropiedad de cada tabla, incluida identidad y PII.
 2. Aprobar el modelo de membresías: pertenencia a varios tenants, alcance a varias copropiedades, roles, vigencia y revocación.
