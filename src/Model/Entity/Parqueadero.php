@@ -1,0 +1,1 @@
+<?php declare(strict_types=1); namespace App\Model\Entity; use Cake\ORM\Entity; class Parqueadero extends Entity { protected array $_accessible=['code'=>true,'vehicle_type'=>true,'location'=>true,'covered'=>true,'status'=>true,'notes'=>true]; }

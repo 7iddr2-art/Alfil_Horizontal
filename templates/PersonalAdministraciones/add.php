@@ -1,0 +1,1 @@
+<?php $this->assign('title','Nuevo personal'); ?><div class="content admin-page"><h1>Nuevo personal</h1><?= $this->Form->create($registro) ?><?= $this->element('PersonalAdministraciones/form',compact('propiedades')) ?><?= $this->Form->button('Guardar') ?><?= $this->Form->end() ?></div>

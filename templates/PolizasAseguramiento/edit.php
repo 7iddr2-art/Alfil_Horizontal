@@ -1,0 +1,1 @@
+<?php $this->assign('title','Editar póliza'); ?><div class="content admin-page"><h1>Editar póliza</h1><?= $this->Form->create($poliza) ?><?= $this->element('PolizasAseguramiento/form',compact('propiedades')) ?><?= $this->Form->button('Guardar') ?><?= $this->Form->end() ?></div>

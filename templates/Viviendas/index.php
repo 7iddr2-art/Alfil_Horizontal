@@ -1,0 +1,5 @@
+<?php $this->assign('title', __('Viviendas')); ?>
+<div class="content admin-page"><div class="page-heading"><div><p class="dashboard-kicker">PROPIEDAD HORIZONTAL</p><h1>Viviendas</h1></div><a class="button" href="<?= $this->Url->build(['action' => 'add']) ?>">Nueva vivienda</a></div>
+<div class="table-responsive"><table><thead><tr><th>Código</th><th>Tipo</th><th>Ubicación</th><th>Área</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+<?php foreach ($viviendas as $vivienda): ?><tr><td><?= h($vivienda->code) ?></td><td><?= $vivienda->type === 'house' ? 'Casa' : 'Apartamento' ?></td><td><?= h(trim(($vivienda->tower_block ? $vivienda->tower_block . ' - ' : '') . $vivienda->number)) ?></td><td><?= h($vivienda->area_m2) ?> m²</td><td><?= $vivienda->status === 'active' ? 'Activa' : 'Inactiva' ?></td><td class="actions"><a href="<?= $this->Url->build(['action' => 'edit', $vivienda->id]) ?>">Editar</a><?= $this->Form->postLink('Eliminar', ['action' => 'delete', $vivienda->id], ['confirm' => '¿Eliminar esta vivienda?']) ?></td></tr><?php endforeach; ?>
+</tbody></table></div></div>

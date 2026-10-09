@@ -1,0 +1,131 @@
+.access-audits-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.access-audits-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.access-audits-panel {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    border: 1px solid #dfe3eb;
+    border-radius: 12px;
+}
+
+.access-audits-filter-panel {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
+}
+
+.access-audits-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.access-audits-clear {
+    margin-left: 0.5rem;
+}
+
+.access-audits-cleanup {
+    background: #fff;
+}
+
+.access-audits-cleanup[hidden] {
+    display: none;
+}
+
+.access-audits-cleanup-title {
+    margin-bottom: 1rem;
+}
+
+.access-audits-cleanup-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 2rem;
+    align-items: start;
+}
+
+.access-audits-date-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.access-audits-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.access-audits-confirm input {
+    flex: none;
+    margin-top: 0.35rem;
+}
+
+.access-audits-danger-button,
+.access-audits-danger-button:hover,
+.access-audits-danger-button:focus {
+    background: #b42318;
+    border-color: #b42318;
+}
+
+.access-audits-table-wrap {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.access-audits-status {
+    font-weight: 600;
+}
+
+.access-audits-status--connected {
+    color: #2e7d32;
+}
+
+.access-audits-status--disconnected {
+    color: #b42318;
+}
+
+.access-audits-status--missing-logout {
+    color: #946200;
+}
+
+.access-audits-status--unknown {
+    color: #667085;
+}
+
+.access-audits-empty {
+    padding: 1.5rem;
+    color: #475569;
+    text-align: center;
+}
+
+.access-audits-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+}
+
+.access-audits-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}

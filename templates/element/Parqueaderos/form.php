@@ -1,0 +1,4 @@
+<div class="content admin-page">
+    <h1>Parqueadero</h1>
+    <?= $this->Form->create($item) ?><?= $this->Form->control('code', ['label' => 'Código']) ?><?= $this->Form->control('vehicle_type', ['label' => 'Tipo', 'options' => ['car' => 'Carro', 'motorcycle' => 'Moto']]) ?><?= $this->Form->control('location', ['label' => 'Ubicación']) ?><?= $this->Form->control('covered', ['label' => 'Cubierto']) ?><?= $this->Form->control('status', ['label' => 'Estado', 'options' => ['available' => 'Disponible', 'assigned' => 'Asignado', 'inactive' => 'Inactivo']]) ?><?= $this->Form->control('notes', ['label' => 'Observaciones']) ?><?= $this->Form->button('Guardar') ?><?= $this->Form->end() ?>
+</div>

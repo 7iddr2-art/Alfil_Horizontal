@@ -1,0 +1,1 @@
+<?php declare(strict_types=1); namespace App\Model\Entity; use Cake\ORM\Entity; class Residente extends Entity { protected array $_accessible=['resident_code'=>true,'vivienda_id'=>true,'document_type'=>true,'document_number'=>true,'full_name'=>true,'relationship_type'=>true,'phone'=>true,'email'=>true,'start_date'=>true,'end_date'=>true,'active'=>true,'notes'=>true]; }

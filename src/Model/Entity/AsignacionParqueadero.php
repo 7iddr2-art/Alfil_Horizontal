@@ -1,0 +1,1 @@
+<?php declare(strict_types=1); namespace App\Model\Entity; use Cake\ORM\Entity; class AsignacionParqueadero extends Entity { protected array $_accessible=['parqueadero_id'=>true,'copropietario_id'=>true,'residente_id'=>true,'vivienda_id'=>true,'vehicle_plate'=>true,'vehicle_description'=>true,'monthly_fee'=>true,'start_date'=>true,'end_date'=>true,'active'=>true,'notes'=>true]; }
