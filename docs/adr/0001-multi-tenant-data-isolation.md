@@ -1,6 +1,6 @@
 # ADR-0001: Aislamiento multi-tenant en una base de datos compartida
 
-- **Estado:** Diseño objetivo aprobado por producto y arquitectura según confirmación del usuario (2026-10-09); prototipo de FK compuesta validado en MySQL 8.4. El usuario autorizó crear el esquema destino desde cero, sin trasladar ni cargar datos del conjunto demo. Se implementó una primera migración vacía de tenants/membresías; todavía no implementa ni acredita aislamiento multi-tenant.
+- **Estado:** Dirección de aislamiento aprobada por producto/arquitectura según confirmación del usuario (2026-10-09); prototipo de FK compuesta validado en MySQL 8.4. La propuesta detallada F1-05 se añadió el 2026-10-13 y aún requiere revisión de arquitectura antes de migraciones. El usuario autorizó crear el esquema destino desde cero, sin trasladar ni cargar datos del conjunto demo. Las migraciones actuales no implementan ni acreditan aislamiento multi-tenant completo.
 - **Fecha:** 2026-10-09.
 - **Responsables:** Producto y arquitectura aprobaron la dirección. La implementación autorizada se limita al esquema destino vacío; no incluye datos del origen.
 
@@ -41,11 +41,11 @@ Esta clasificación es una propuesta técnica de propiedad del dato, no un inven
 | `users` | Identidad global y credenciales; no almacena rol operativo global. | Membresías a tenant en una nueva entidad; la identidad autenticada por sí sola no concede acceso a datos operativos. |
 | `roles`, `profiles` | Catálogos de autorización a revisar. Catálogo inmutable/global sólo si se valida; asignaciones siempre por membresía. | No usar `users.role_id`/`profile_id` como concesión efectiva entre tenants; definir roles personalizados tenant-scoped si producto lo necesita. |
 | Nuevos `tenants`, planes y suscripciones | Tenant SaaS. | Plan/suscripción referencian al tenant; cada copropiedad referencia tenant mediante clave compuesta. |
-| Nueva membresía y alcance de membresía | Tenant; asociación a copropiedad cuando sea limitada. | FK a identidad y tenant; unicidad usuario-tenant según el modelo acordado; acceso a copropiedad validado mediante asociación explícita. |
+| Nueva membresía y alcance de membresía | Tenant; asociación explícita a una o más copropiedades permitidas. | FK a identidad y tenant; unicidad usuario-tenant según el modelo acordado; tabla `tenant_membership_properties` propuesta para verificar alcance explícito. |
 | `propiedades_horizontales` | Tenant + copropiedad. | Añadir `tenant_id` y clave candidata `(tenant_id, id)` para relaciones hijas. |
 | `viviendas` | Tenant + copropiedad. | Añadir vínculo a propiedad horizontal (hoy ausente) y FK compuesta que impida vivienda bajo tenant incorrecto. |
 | `copropietarios` | Tenant-scoped por defecto por contener PII; no asumir que una persona es compartible entre clientes. | Asociaciones propietario-vivienda llevan tenant y copropiedad y validan ambos extremos. |
-| `vivienda_copropietarios` | Tenant + copropiedad. | FKs compuestas a vivienda y persona; revisar unicidad histórica para permitir titularidades con vigencia en vez de una sola asociación permanente. |
+| `vivienda_copropietarios` | Tenant + copropiedad. | FKs compuestas a vivienda y persona. Decisión de producto del 2026-10-13: permitir varias vigencias históricas por vivienda-propietario, con extremos inclusivos y sin solapamiento para el mismo par; los propietarios distintos pueden ser copropietarios simultáneos. |
 | `residentes` | Tenant + copropiedad, vinculada a vivienda. | FK compuesta a vivienda; verificar tenant/copropriedad en consultas de perfil y reserva. |
 | `parqueaderos` | Tenant + copropiedad. | Añadir propiedad horizontal y cambiar unicidad global de `code` sólo tras acordar alcance natural. |
 | `asignaciones_parqueaderos`, `pagos_parqueaderos` | Tenant + copropiedad. | Todas las FKs a parqueadero, persona, residente, vivienda y asignación deben validar el mismo ámbito; pagos heredan/validan el ámbito de la asignación. |
@@ -53,9 +53,37 @@ Esta clasificación es una propuesta técnica de propiedad del dato, no un inven
 | Reuniones (concepto futuro; no existe tabla en las migraciones actuales) | Tenant + copropiedad. | Al incorporarlas, añadir la propiedad convocante; `created_by` refiere a identidad global, pero cada operación exige membresía vigente y permiso. |
 | `access_audits` | Revisar separación entre autenticación global y auditoría de negocio tenant-scoped. | Eventos de login previos a seleccionar tenant pueden carecer de tenant sólo si se clasifican explícitamente como globales; auditoría de operaciones/exportaciones siempre registra tenant y alcance. |
 
+### Diseño técnico propuesto para F1-05: alcance de copropiedad
+
+**Estado del diseño detallado:** propuesta lista para revisión de arquitectura antes de aplicar migraciones. No equivale a aprobación del DER ni habilita CRUD multi-tenant.
+
+Se conserva `propiedades_horizontales` como entidad de copropiedad existente y se usa su nombre de columna `propiedad_horizontal_id` en vez de introducir un segundo nombre (`copropiedad_id`) para el mismo concepto. Las claves referenciadas compuestas son redundantes respecto del `id` global, pero necesarias para que InnoDB compruebe la pertenencia común en cada relación.
+
+| Tabla | Propiedad propuesta | Claves candidatas y referencias |
+|---|---|---|
+| `propiedades_horizontales` | Raíz de copropiedad; `tenant_id NOT NULL`. | `UNIQUE (tenant_id, id)`; NIT conserva su unicidad global actual, sujeto a confirmar la regla de dominio. |
+| `viviendas` | `tenant_id` y `propiedad_horizontal_id` obligatorios. | `UNIQUE (tenant_id, propiedad_horizontal_id, id)`; FK `(tenant_id, propiedad_horizontal_id)` a copropiedad. Códigos y `(type, tower_block, number)` pasan de unicidad global a unicidad por `(tenant_id, propiedad_horizontal_id)`. |
+| `copropietarios` | PII limitada al tenant; permite que la misma persona tenga registros separados entre clientes. | `UNIQUE (tenant_id, id)`; documento único por `(tenant_id, document_type, document_number)`. No se usa esta tabla para compartir una identidad personal entre tenants. |
+| `vivienda_copropietarios` | `tenant_id` y `propiedad_horizontal_id` obligatorios; corresponde al vínculo histórico de titularidad. | FK `(tenant_id, propiedad_horizontal_id, vivienda_id)` a vivienda; FK `(tenant_id, copropietario_id)` a propietario. `start_date` obligatorio y ambas fechas inclusivas; un propietario puede tener varias vigencias para la misma vivienda, no solapadas. El solapamiento se valida en servicio dentro de transacción bloqueando la vivienda afectada; MySQL no ofrece una restricción nativa de exclusión temporal. Una vigencia abierta (`end_date IS NULL`) se considera vigente sin límite superior. |
+| `residentes` | `tenant_id`, `propiedad_horizontal_id` y `vivienda_id` obligatorios. | FK triple a vivienda; código único por copropiedad. Documento único en el tenant para evitar duplicación accidental dentro de un mismo cliente sin cruzar clientes. |
+| `parqueaderos` | `tenant_id` y `propiedad_horizontal_id` obligatorios. | `UNIQUE (tenant_id, propiedad_horizontal_id, id)`; código único por copropiedad. |
+| `personal_administraciones`, `polizas_aseguramiento` | `tenant_id` redundante junto a `propiedad_horizontal_id` para validar el par tenant-copropiedad. | FK compuesta a `(tenant_id, id)` de copropiedad; número de póliza único por copropiedad. |
+| `asignaciones_parqueaderos` | `tenant_id` y `propiedad_horizontal_id` obligatorios; referencias a parqueadero, propietario, residente y vivienda respetan el mismo ámbito. | `UNIQUE (tenant_id, propiedad_horizontal_id, id)` para ser referenciable por pagos; FKs compuestas a parqueadero/vivienda por tenant y copropiedad y a propietario por tenant. Las referencias actualmente opcionales siguen siendo opcionales; reglas de consistencia entre vivienda, residente y propietario son validación de dominio posterior. |
+| `pagos_parqueaderos` | `tenant_id` y `propiedad_horizontal_id` obligatorios. | FK `(tenant_id, propiedad_horizontal_id, asignacion_parqueadero_id)` a asignación; unicidad del período pasa a `(tenant_id, asignacion_parqueadero_id, period)`. |
+| `tenant_membership_properties` (nueva) | Alcance explícito de una membresía a una copropiedad. | `tenant_id`, `tenant_membership_id`, `propiedad_horizontal_id`; FK `(tenant_id, tenant_membership_id)` a membresía y `(tenant_id, propiedad_horizontal_id)` a copropiedad; `UNIQUE (tenant_membership_id, propiedad_horizontal_id)`. `tenant_memberships` publica `UNIQUE (tenant_id, id)`. Esta tabla no asigna roles ni concede permisos por sí sola. |
+| `access_audits` | Auditoría de autenticación global. | No se convierte en tabla de negocio tenant-scoped; los eventos de operación requieren una entidad de auditoría de negocio separada y F1-06. |
+
+El orden de creación/actualización es: claves candidatas de `tenants`/`tenant_memberships`; clave candidata de copropiedad; columnas y claves de vivienda/persona; tabla de alcance de membresía; tablas puente e hijas; y, al final, FKs compuestas. Se reemplazan las FKs simples e índices únicos globales que contradigan el alcance anterior. Todos los componentes de cada FK compuesta deben tener tipos, signo y orden idénticos en los dos extremos; se conserva `RESTRICT` para borrado y `CASCADE` sólo para actualización de identificadores.
+
+Las fechas de titularidad se interpretan como inclusivas: para el mismo par vivienda-propietario, una nueva vigencia no puede empezar el mismo día en que termina la anterior. Vigencias de propietarios distintos sí pueden solaparse, porque la copropiedad simultánea de una vivienda es válida. Para el mismo par hay solapamiento si cada inicio es menor o igual al fin de la otra; un fin nulo equivale a ausencia de límite superior. Se rechazan también vigencias cuyo fin sea anterior a su inicio.
+
+La migración F1-05 debe ser nueva y forward-only. Antes de su primer DDL, comprobará que todas las tablas operativas afectadas están vacías; si encuentra filas, abortará sin backfill, tenant ficticio ni cambio de datos. Se ejecuta únicamente contra el esquema destino vacío expresamente configurado. No se edita una base demo ni se usa una copia de sus registros para poblar, reconciliar o probar constraints. Como el DDL de MySQL no es atómico en conjunto, una falla posterior al preflight puede dejar cambios estructurales parciales; no debe cambiar datos. El procedimiento de recuperación será reparar/recrear únicamente el destino vacío autorizado y volver a ejecutar la migración. Un rollback sólo puede eliminar la estructura nueva bajo confirmación de que las tablas siguen vacías.
+
+Las pruebas de aceptación deben crear dos tenants y al menos una copropiedad/vivienda por tenant; aceptar FKs dentro del ámbito y rechazar referencias cruzadas de propietarios, viviendas, residentes, parqueaderos, asignaciones, pagos y alcance de membresía. Probar además unicidad local al tenant/copropiedad, asociación temporal no solapada y rechazo de una intersección de vigencias, sin filas parciales tras error.
+
 ### Resolución del contexto y autorización
 
-- El tenant activo se resuelve en servidor desde una identidad autenticada y una membresía activa comprobada en cada petición.
+- El tenant activo se resuelve en servidor desde una identidad autenticada y una membresía activa comprobada en cada petición. Antes de operar sobre una copropiedad también se verifica una fila explícita en `tenant_membership_properties`; pertenecer al tenant no implica acceso a todas sus copropiedades.
 - Se deniega por defecto cualquier acción no concedida. Leer, crear, editar, aprobar, contabilizar, anular, exportar y administrar son acciones diferenciables.
 - Los servicios, consultas, tareas asíncronas, cachés, archivos, webhooks e informes reciben un contexto de tenant explícito y validado. No se confía en un `tenant_id` libre de URL, formulario, API ni payload de trabajo.
 - Las tareas persistidas guardan el identificador de tenant/membresía necesario y vuelven a validar estado/permisos antes de operar; los contextos no se reutilizan accidentalmente entre trabajos.
@@ -75,7 +103,7 @@ Esta clasificación es una propuesta técnica de propiedad del dato, no un inven
 - La consulta de listas, unicidad, búsquedas, auditoría, documentos, exports y jobs debe auditarse por alcance, no sólo las rutas web.
 - Los identificadores globales existentes, la identidad de personas y la granularidad de membresías requieren decisiones de dominio antes de imponer constraints.
 - El usuario autorizó migraciones de esquema para construir una base destino vacía, sin migrar ni cargar datos existentes. No copiar el conjunto demo/origen ni alterarlo. El diseño descrito permanece como objetivo; el aislamiento multi-tenant no se considera implementado hasta terminar y probar todas sus capas.
-- La migración inicial crea `tenants` y `tenant_memberships` sin insertar registros. Una membresía contiene únicamente tenant, identidad, estado y vigencia; no incorpora roles globales ni concede por sí misma acceso a recursos. La relación explícita de membresía con copropiedades y las claves compuestas de las tablas operativas quedan para incrementos posteriores, antes de exponer esos datos.
+- La migración inicial crea `tenants` y `tenant_memberships` sin insertar registros. Una membresía contiene únicamente tenant, identidad, estado y vigencia; no incorpora roles globales ni concede por sí misma acceso a recursos. La tabla de alcance `tenant_membership_properties` y las claves compuestas de las tablas operativas están diseñadas como propuesta F1-05, pendientes de revisión y migración antes de exponer esos datos.
 
 ## Validación técnica realizada
 
@@ -91,15 +119,16 @@ Las tablas de prueba se eliminaron después y se comprobó que la base `alfil_ho
 | Fecha | Artefacto | Resultado | Registro |
 |---|---|---|---|
 | 2026-10-09 | ADR-0001, dirección de aislamiento multi-tenant | Aprobado | El usuario confirmó que la persona revisora aprobó el ADR. No se recibieron comentarios, condiciones ni nombre para registrar; no inferir que el DER detallado o cada punto de la lista de verificación recibió aprobación individual. |
+| 2026-10-13 | F1-05, vigencias de titularidad | Decisión de producto registrada; revisión técnica pendiente | El usuario confirmó varias vigencias históricas por vivienda-propietario, con fechas inclusivas y sin solapamiento para el mismo par; copropietarios distintos pueden tener vigencias simultáneas. No es aprobación de arquitectura del DER o constraints. |
 
 ## Pendientes de diseño e implementación
 
-- Completar la revisión del diagrama entidad-relación, cardinalidades, nulabilidad y tablas globales vs. tenant-scoped antes de migraciones; el ADR de dirección ya fue aprobado. Registrar por separado la fecha, observaciones, decisiones y responsable de cada hallazgo del diseño detallado.
-- Confirmar la clasificación inicial de tablas anterior, en especial la ausencia actual de relación vivienda-copropiedad, la identidad de personas/PII y la separación de auditoría de login frente a auditoría de negocio.
-- Definir cómo una membresía cubre copropiedades múltiples y cómo aplican delegaciones/suplencias.
+- Revisar con arquitectura el diseño F1-05 detallado de este ADR: DER, cardinalidades, nulabilidad, claves candidatas, índices, constraints y plan seguro de DDL. Registrar fecha, observaciones, decisiones y responsable de cada hallazgo; la aprobación de la dirección del ADR no aprueba automáticamente esta propuesta.
+- Confirmar la clasificación de tablas propuesta, la identidad de personas/PII, la unicidad global del NIT y la separación de auditoría de login frente a auditoría de negocio.
+- La asociación explícita de membresía a una o más copropiedades está diseñada en F1-05; faltan revisar su implementación, delegaciones/suplencias y la decisión separada de permisos por alcance.
 - Definir la identidad y los límites de privilegio del operador SaaS, incluyendo el tratamiento del `super_admin` histórico, suplantación/acceso de soporte y revocación inmediata.
-- Acordar índices únicos por dominio; revisar identidades de usuario y personas/PII.
-- Diseñar constraints compuestos para todas las relaciones operativas y validar tamaños/tipos idénticos en claves referenciadas.
+- Revisar índices únicos por dominio y la política de PII/documento en tenant antes de aprobar la implementación.
+- El mapa propuesto de constraints compuestos cubre las relaciones de las tablas actuales; comprobar tamaños/tipos/signo/orden idénticos durante su implementación y pruebas.
 - Definir ciclo de tenants suspendidos y membresías revocadas, expiración de soporte y auditoría.
 - Escribir pruebas negativas sintéticas para cada capa: consultas, servicios, rutas, jobs, archivos, cachés e informes.
 - Obtener revisión profesional de privacidad, retención, contabilidad y reglas legales que afecten autorización/conservación.
@@ -113,7 +142,7 @@ Marcar cada punto como **aprobado**, **cambiar** o **no aplica**, con evidencia/
 2. Aprobar el modelo de membresías: pertenencia a varios tenants, alcance a varias copropiedades, roles, vigencia y revocación.
 3. Resolver el operador SaaS y el `super_admin` actual sin elevar privilegios de tenant accidentalmente.
 4. Revisar claves candidatas, FKs compuestas, unicidad por alcance, nulabilidad, cascadas y tipos/orden de columnas.
-5. Aprobar el tratamiento de titularidad histórica, la relación vivienda-copropiedad que hoy falta y la asignación de parqueaderos.
+5. Revisar el tratamiento acordado de titularidad histórica (vigencias inclusivas, no solapadas para el mismo par), la relación vivienda-copropiedad que hoy falta y la asignación de parqueaderos.
 6. Acordar migración por etapas, backfill y reconciliación para un futuro conjunto de datos autorizado, sin usar el dataset demo actual.
 7. Verificar aislamiento en consultas y servicios además de controladores, incluyendo jobs, exportaciones, caché, archivos y auditoría.
-8. Identificar riesgos y tareas de seguimiento; documentar responsables y pruebas de aceptación antes de comenzar las migraciones.
+8. Identificar riesgos y tareas de seguimiento; documentar responsables y pruebas de aceptación antes de comenzar las migraciones. El diseño detallado F1-05 debe recibir revisión de arquitectura.
